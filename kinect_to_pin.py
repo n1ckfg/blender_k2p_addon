@@ -11,7 +11,75 @@ from bpy.props import (BoolProperty, FloatProperty, StringProperty, IntProperty,
 from bpy_extras.io_utils import (ImportHelper, ExportHelper)
 import xml.dom.minidom as xd
 import xml.etree.ElementTree as etree
-from latk import *
+
+# ~ ~ ~ 
+
+def select(target=None):
+    if not target:
+        target=bpy.context.selected_objects;
+    print("selected " + str(target))
+    return target
+
+def ss():
+	returns = select()
+	if (len(returns) > 0):
+	    return returns[0]
+	else:
+		return None
+
+s = select
+
+def deselect():
+    bpy.ops.object.select_all(action='DESELECT')
+
+def refresh():
+    bpy.context.scene.update()
+
+def addLocator(target=None):
+    if not target:
+        target = ss()
+    empty = bpy.data.objects.new("Empty", None)
+    bpy.context.scene.objects.link(empty)
+    bpy.context.scene.update()
+    if (target != None):
+        empty.location = target.location
+    return empty
+
+def rename(target=None, name="Untitled"):
+    if not target:
+        target = ss()
+    target.name = name
+    return target.name
+
+def goToFrame(_index):
+    origFrame = bpy.context.scene.frame_current
+    bpy.context.scene.frame_current = _index
+    bpy.context.scene.frame_set(_index)
+    refresh()
+    print("Moved from timeline frame " + str(origFrame) + " to " + str(_index))
+    return bpy.context.scene.frame_current
+
+def currentFrame(target=None):
+    if not target:
+        return bpy.context.scene.frame_current
+    else:
+        goToFrame(target)
+
+def getStartEnd(pad=True):
+    start = bpy.context.scene.frame_start
+    end = None
+    if (pad==True):
+        end = bpy.context.scene.frame_end + 1
+    else:
+        end = bpy.context.scene.frame_end
+    return start, end
+
+def keyTransform(_obj, _frame):
+    _obj.keyframe_insert(data_path="location", frame=_frame) 
+    _obj.keyframe_insert(data_path="rotation_euler", frame=_frame) 
+    _obj.keyframe_insert(data_path="scale", frame=_frame)
+
+# ~ ~ ~ 
 
 def readKinectToPin(filepath=None, resizeTimeline=True):
     joints = ["l_foot","l_knee","l_hip","r_foot","r_knee","r_hip","l_hand","l_elbow","l_shoulder","r_hand","r_elbow","r_shoulder","torso","neck","head"]
@@ -53,7 +121,7 @@ def writeKinectToPin(filepath=None, bake=False):
     root_node.setAttribute("fps", "24")
     root_node.setAttribute("numFrames", str(end))
 
-    for i in range(start, end+1):
+    for i in range(start, end):
         goToFrame(i)
         frame_node = doc.createElement("MocapFrame")
         root_node.appendChild(frame_node)
@@ -96,6 +164,8 @@ def writeKinectToPin(filepath=None, bake=False):
     with open(filepath, "w") as f:
         f.write(doc.toprettyxml())
         f.closed
+
+# ~ ~ ~ 
 
 class ImportK2P(bpy.types.Operator, ImportHelper):
     """Load a KinectToPin xml File"""
