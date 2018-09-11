@@ -11,43 +11,91 @@ from bpy.props import (BoolProperty, FloatProperty, StringProperty, IntProperty,
 from bpy_extras.io_utils import (ImportHelper, ExportHelper)
 import xml.dom.minidom as xd
 import xml.etree.ElementTree as etree
+from latk import *
 
 def readKinectToPin(filepath=None, resizeTimeline=True):
-    joints = [ "head", "neck", "torso", "l_shoulder", "l_elbow", "l_hand", "r_shoulder", "r_elbow", "r_hand", "l_hip", "l_knee", "l_foot", "r_hip", "r_knee", "r_foot" ]
-    
-    globalScale = (1, 1, 1)
+    joints = ["l_foot","l_knee","l_hip","r_foot","r_knee","r_hip","l_hand","l_elbow","l_shoulder","r_hand","r_elbow","r_shoulder","torso","neck","head"]
+    globalScale = (1, -1, 1)
 
     xmlFile = xd.parse(filepath)
 
-    '''
     for joint in joints:    
         deselect()
         frames = xmlFile.getElementsByTagName(joint)
         loc = addLocator()
-        mc.rename(loc, joint)
+        rename(loc, joint)
 
         for i, frame in enumerate(frames):
             x = float(frame.getAttribute("x")) * globalScale[0]
             y = float(frame.getAttribute("y")) * globalScale[1]
             z = float(frame.getAttribute("z")) * globalScale[2]
             
-            gotoFrame(i)
-            mc.move(x, y, z)
-            k()
-
-    s(joints)
-    buildFromLocators()
-    '''
-
-def getJoint(element, name):
-    joint = element.find(name)
-    x = float(joint.find("x").text)
-    y = float(joint.find("y").text)
-    z = float(joint.find("z").text)
-    return (x, y, z)
+            goToFrame(i)
+            loc.location = (x, z, y)
+            keyTransform(loc, currentFrame())
 
 def writeKinectToPin(filepath=None, bake=False):
-    pass
+    start, end = getStartEnd()
+
+    openniNames = ["head", "neck", "torso", "l_shoulder", "l_elbow", "l_hand", "r_shoulder", "r_elbow", "r_hand", "l_hip", "l_knee", "l_foot", "r_hip", "r_knee", "r_foot"]
+    openniNames_jnt = ["head_jnt", "neck_jnt", "torso_jnt", "l_shoulder_jnt", "l_elbow_jnt", "l_hand_jnt", "r_shoulder_jnt", "r_elbow_jnt", "r_hand_jnt", "l_hip_jnt", "l_knee_jnt", "l_foot_jnt", "r_hip_jnt", "r_knee_jnt", "r_foot_jnt"]
+    cmuNames = ["Head", "Neck1", "Spine", "LeftArm", "LeftForeArm", "LeftFingerBase", "RightArm", "RightForeArm", "RightFingerBase", "LeftUpLeg", "LeftLeg", "LeftToeBase", "RightUpLeg", "RightLeg", "RightToeBase"]
+    mobuNames = ["Head", "Neck", "Spine", "LeftArm", "LeftForeArm", "LeftHand", "RightArm", "RightForeArm", "RightHand", "LeftUpLeg", "LeftLeg", "LeftFoot", "RightUpLeg", "RightLeg", "RightFoot"]
+
+    doc = xd.Document()
+
+    root_node = doc.createElement("MotionCapture")
+    doc.appendChild(root_node)
+    root_node.setAttribute("width", "640")
+    root_node.setAttribute("height", "480")
+    root_node.setAttribute("depth", "200")
+    root_node.setAttribute("dialogueFile", "none")
+    root_node.setAttribute("fps", "24")
+    root_node.setAttribute("numFrames", str(end))
+
+    for i in range(start, end+1):
+        goToFrame(i)
+        frame_node = doc.createElement("MocapFrame")
+        root_node.appendChild(frame_node)
+        frame_node.setAttribute("index",str(i-1))
+
+        skel_node = doc.createElement("Skeleton")
+        frame_node.appendChild(skel_node)
+        skel_node.setAttribute("id","0")
+
+        joint_node = doc.createElement("Joints")
+        skel_node.appendChild(joint_node)
+
+        joints = None
+        target = s()
+        if (len(target) == 1): # assume root joint selected
+            joints = getChildren(target)
+            joints.append(target)
+        elif (len(target) > 1): # assume all joints at same level
+            joints = target
+        else:
+            return
+
+        for j in range(0,len(joints)):
+            try:
+                theJointName = joints[j].name
+                for k in range(0,len(openniNames)):
+                    if (theJointName==cmuNames[k] or theJointName==mobuNames[k] or theJointName==openniNames_jnt[k]):
+                        theJointName=openniNames[k]
+                    if (theJointName==openniNames[k]):
+                        k_node = doc.createElement(theJointName)
+                        joint_node.appendChild(k_node)
+
+                        p = joints[j].location
+                        k_node.setAttribute("x", str(p[0]))
+                        k_node.setAttribute("y", str(-p[2]))
+                        k_node.setAttribute("z", str(p[1]))
+            except:
+                pass
+
+    with open(filepath, "w") as f:
+        f.write(doc.toprettyxml())
+        f.closed
 
 class ImportK2P(bpy.types.Operator, ImportHelper):
     """Load a KinectToPin xml File"""
@@ -97,7 +145,7 @@ class ExportK2P(bpy.types.Operator, ExportHelper): # TODO combine into one class
         #~
         keywords["bake"] = self.bake
         #~
-        k2p.writeKinectToPin(**keywords, zipped=False)
+        k2p.writeKinectToPin(**keywords)
         return {'FINISHED'}
 
 def menu_func_import(self, context):
@@ -110,13 +158,13 @@ def register():
     bpy.utils.register_module(__name__)
 
     bpy.types.INFO_MT_file_import.append(menu_func_import)
-    #bpy.types.INFO_MT_file_export.append(menu_func_export)
+    bpy.types.INFO_MT_file_export.append(menu_func_export)
 
 def unregister():
     bpy.utils.unregister_module(__name__)
 
     bpy.types.INFO_MT_file_import.remove(menu_func_import)
-    #bpy.types.INFO_MT_file_export.remove(menu_func_export)
+    bpy.types.INFO_MT_file_export.remove(menu_func_export)
 
 if __name__ == "__main__":
     register()
