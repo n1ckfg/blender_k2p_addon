@@ -35,10 +35,11 @@ def deselect():
 def refresh():
     bpy.context.scene.update()
 
-def addLocator(target=None):
+def addLocator(target=None, draw_size=0.1):
     if not target:
         target = ss()
     empty = bpy.data.objects.new("Empty", None)
+    empty.empty_draw_size = draw_size
     bpy.context.scene.objects.link(empty)
     bpy.context.scene.update()
     if (target != None):
@@ -81,7 +82,7 @@ def keyTransform(_obj, _frame):
 
 # ~ ~ ~ 
 
-def readKinectToPin(filepath=None, resizeTimeline=True):
+def readKinectToPin(filepath=None, resizeTimeline=True, drawSize=0.1):
     joints = ["l_foot","l_knee","l_hip","r_foot","r_knee","r_hip","l_hand","l_elbow","l_shoulder","r_hand","r_elbow","r_shoulder","torso","neck","head"]
     globalScale = (1, -1, 1)
 
@@ -90,7 +91,7 @@ def readKinectToPin(filepath=None, resizeTimeline=True):
     for joint in joints:    
         deselect()
         frames = xmlFile.getElementsByTagName(joint)
-        loc = addLocator()
+        loc = addLocator(target=None, draw_size=drawSize)
         rename(loc, joint)
 
         for i, frame in enumerate(frames):
@@ -170,6 +171,7 @@ def writeKinectToPin(filepath=None, bake=False):
 class ImportK2P(bpy.types.Operator, ImportHelper):
     """Load a KinectToPin xml File"""
     resizeTimeline = BoolProperty(name="Resize Timeline", description="Set in and out points", default=True)
+    drawSize = FloatProperty(name="Empty Draw Size", description="Size of the empty objects", default=0.1)
 
     bl_idname = "import_scene.k2p"
     bl_label = "Import K2P"
@@ -183,11 +185,12 @@ class ImportK2P(bpy.types.Operator, ImportHelper):
 
     def execute(self, context):
         import kinect_to_pin as k2p
-        keywords = self.as_keywords(ignore=("axis_forward", "axis_up", "filter_glob", "split_mode", "resizeTimeline"))
+        keywords = self.as_keywords(ignore=("axis_forward", "axis_up", "filter_glob", "split_mode"))
         if bpy.data.is_saved and context.user_preferences.filepaths.use_relative_paths:
             import os
         #~
         keywords["resizeTimeline"] = self.resizeTimeline
+        keywords["drawSize"] = self.drawSize
         k2p.readKinectToPin(**keywords)
         return {'FINISHED'}
 
